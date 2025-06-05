@@ -39,7 +39,10 @@ The following options are available:
   -w    Set delay before capturing starts (in seconds, default 0.5s)
   -t    Set duration of video (in seconds)
   -d    Set the capture device by name (use -l to list attached devices)
-  -p    Set the encoding preset (use High, Medium (default), Low, 640x480 or 1280x720)
+  -p    Set the encoding preset (use High, Medium (default), Low, 640x480, 1280x720, 1920x1080, or 3840x2160)
+  -r    Set custom resolution (e.g. 1920x1080, overrides preset)
+  -b    Set custom bitrate in bps (e.g. 5000000 for 5Mbps)
+  -f    Fit full image without cropping (default is to fill and crop)
   -v    Turn ON verbose mode (OFF by default)
   -h    Show help
   --no-audio
@@ -81,6 +84,8 @@ The AVFoundation framework provides the following video encoding presets:
 | Low           | Suitable for 3G sharing. The actual values may change.    |
 | 640x480       | VGA.                                                      |
 | 1280x720      | 720p HD.                                                  |
+| 1920x1080     | Full HD.                                                  |
+| 3840x2160     | 4K Ultra HD.                                              |
 
 Use the `-p` flag to choose a preset.
 

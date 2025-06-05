@@ -7,7 +7,10 @@ adheres to [Semantic Versioning](Semver).
 
 ## [Unreleased]
 
-- Your contribution here!
+### Added
+- Custom resolution option with `-r WxH` flag
+- Custom bitrate control with `-b bitrate` flag
+- Fit option with `-f` flag to prevent cropping when using custom resolutions
 
 ## [0.0.9] - 2023-Dec-31
 ### Added
