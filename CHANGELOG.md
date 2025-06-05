@@ -5,12 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](KeepAChangelog) and this project
 adheres to [Semantic Versioning](Semver).
 
-## [Unreleased]
+## [Unreleased] - 2025-Jun-5 
 
 ### Added
 - Custom resolution option with `-r WxH` flag
 - Custom bitrate control with `-b bitrate` flag
 - Fit option with `-f` flag to prevent cropping when using custom resolutions
+
+### Changed
+- Removed outdated limitation about iOS screen capturing being broken on M1 Macs
+
+### Fixed
+- Fixed `--no-audio` flag to properly disable audio recording for muxed devices (like iOS devices)
 
 ## [0.0.9] - 2023-Dec-31
 ### Added

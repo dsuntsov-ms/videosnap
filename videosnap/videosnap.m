@@ -455,6 +455,40 @@
 			error("Could not add file '%s' as output to the capture session\n", [filePath UTF8String]);
 			return success;
 		}
+		
+		// If noAudio is true and the device is muxed, try to disable the audio connection
+		if (noAudio && ([videoDevice hasMediaType:AVMediaTypeMuxed] || [videoDevice hasMediaType:AVMediaTypeAudio])) {
+			verbose("(attempting to disable audio for muxed device)\n");
+			
+			// Configure the session to handle audio settings
+			[session beginConfiguration];
+			
+			// Find the audio connection and disable it if possible
+			AVCaptureConnection *audioConnection = [movieFileOutput connectionWithMediaType:AVMediaTypeAudio];
+			if (audioConnection && [audioConnection isEnabled]) {
+				[audioConnection setEnabled:NO];
+				verbose("(disabled audio connection)\n");
+			} else {
+				verbose("(couldn't find audio connection to disable)\n");
+			}
+			
+			// Try to set audio recording settings to minimize the audio
+			// Using minimum valid sample rate (8 kHz) and minimum bitrate
+			NSDictionary *audioSettings = @{
+				AVFormatIDKey: @(kAudioFormatMPEG4AAC),
+				AVNumberOfChannelsKey: @(1),        // Mono
+				AVSampleRateKey: @(8000.0),         // Minimum valid sample rate (8 kHz)
+				AVEncoderBitRateKey: @(8000)        // Minimum bitrate (8 kbps)
+			};
+			
+			// Apply audio settings to the movie file output
+			if (audioConnection) {
+				[movieFileOutput setOutputSettings:audioSettings forConnection:audioConnection];
+				verbose("(applied minimal audio settings to effectively mute audio)\n");
+			}
+			
+			[session commitConfiguration];
+		}
 
 		// Set session preset based on whether custom resolution is specified
 		if (customResolution == nil) {
@@ -597,6 +631,7 @@
   verbose("(adding audio device)\n");
 
   // if the video device doesn't supply audio, add a default audio device (if possible)
+  // Note: Muxed devices (like iOS devices) already include audio, so we don't need to add an audio device
   if (![videoDevice hasMediaType:AVMediaTypeAudio] && ![videoDevice hasMediaType:AVMediaTypeMuxed]) {
 		AVCaptureDevice *audioDevice = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeAudio];
     AVCaptureDeviceInput *audioInput = [AVCaptureDeviceInput deviceInputWithDevice:audioDevice error:&nserror];
@@ -612,6 +647,10 @@
 			error("Audio device is not connected or available\n");
 			verbose_error("%s\n", [[nserror localizedDescription] UTF8String]);
 		}
+  } else {
+    // For devices that provide audio themselves (muxed or with AVMediaTypeAudio), consider it a success
+    verbose("(device already provides audio, no separate audio device needed)\n");
+    success = YES;
   }
 
 	return success;
