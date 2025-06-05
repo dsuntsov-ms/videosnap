@@ -90,7 +90,14 @@
  *
  * @return BOOL
  */
--(BOOL)startSession:(AVCaptureDevice *)device recordingDuration:(NSNumber *)recordSeconds encodingPreset:(NSString *)encodingPreset delaySeconds:(NSNumber *)delaySeconds noAudio:(BOOL)noAudio;
+-(BOOL)startSession:(AVCaptureDevice *)device 
+   recordingDuration:(NSNumber *)recordSeconds 
+      encodingPreset:(NSString *)encodingPreset 
+        delaySeconds:(NSNumber *)delaySeconds 
+             noAudio:(BOOL)noAudio
+       customBitrate:(int)customBitrate
+    customResolution:(NSString *)customResolution
+   fitWithoutCropping:(BOOL)fitWithoutCropping;
 
 /**
   * Delegates togglePauseRecording to movieFileOutput, with SIGINT value from handler

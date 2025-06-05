@@ -84,6 +84,30 @@ The AVFoundation framework provides the following video encoding presets:
 
 Use the `-p` flag to choose a preset.
 
+### Custom Resolution and Bitrate
+
+You can also specify a custom resolution and bitrate for more precise control:
+
+```
+videosnap -r 1920x1080 -b 10000000 movie.mov
+```
+
+This will record at 1920x1080 resolution with a bitrate of 10Mbps. When using custom 
+resolution and bitrate, the preset (`-p`) option is ignored.
+
+- `-r WxH` - Set custom resolution (e.g. 1920x1080)
+- `-b bitrate` - Set custom bitrate in bps (e.g. 5000000 for 5Mbps)
+
+### Fit Option
+
+By default, videosnap will fill the frame and crop if necessary to match your exact resolution. If you want to fit the entire image without cropping, use the `-f` flag:
+
+```
+videosnap -r 1280x720 -f movie.mov   # Fit to 720p without cropping
+```
+
+- `-f` - Fit full image without cropping (default is to fill and crop)
+
 ### Capturing from connected iOS devices
 
 It is possible to screen capture video & audio from an attached iOS device.

@@ -24,3 +24,5 @@ NSString *const DEFAULT_ENCODING_PRESET = @"Medium";
 // 3840x2160 - 3840x2160 HD4k (check its supported before setting it)
 
 NSString *const DEFAULT_ENCODING_PRESETS   = @"High, Medium, Low, 640x480, 1280x720, 1920x1080, 3840x2160";
+int       const DEFAULT_BITRATE = 5000000; // 5 Mbps default bitrate
+NSString *const DEFAULT_RESOLUTION = @"1280x720"; // Default resolution for custom preset

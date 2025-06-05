@@ -36,6 +36,9 @@
 	console("  -v          Turn ON verbose mode (OFF by default)\n");
 	console("  -h          Show help\n");
 	console("  -p          Set the encoding preset (Medium by default)\n");
+	console("  -r WxH      Set custom resolution (e.g. 1920x1080, overrides preset)\n");
+	console("  -f          Fit full image without cropping (default is to fill and crop)\n");
+	console("  -b bitrate  Set custom bitrate in bps (e.g. 5000000 for 5Mbps)\n");
 
 	NSArray *encodingPresets = [DEFAULT_ENCODING_PRESETS componentsSeparatedByString:@", "];
 	for (id encodingPreset in encodingPresets) {
@@ -66,6 +69,9 @@
     NSNumber        *delaySeconds      = [NSNumber numberWithFloat:DEFAULT_RECORDING_DELAY];
     NSNumber        *recordingDuration = nil;
     BOOL            noAudio            = NO;
+    int             customBitrate      = DEFAULT_BITRATE;
+    NSString        *customResolution  = nil;
+    BOOL            fitWithoutCropping = NO;
 
     int argc = (int)[arguments count];
 
@@ -119,6 +125,27 @@
                         ++i;
                     }
                     break;
+                    
+                // custom resolution
+                case 'r':
+                    if (i+1 < argc) {
+                        customResolution = argValue;
+                        ++i;
+                    }
+                    break;
+                    
+                // fit without cropping
+                case 'f':
+                    fitWithoutCropping = YES;
+                    break;
+                    
+                // custom bitrate
+                case 'b':
+                    if (i+1 < argc) {
+                        customBitrate = [argValue intValue];
+                        ++i;
+                    }
+                    break;
 
                 // delaySeconds
                 case 'w':
@@ -163,15 +190,28 @@
         recordingDuration = nil;
     }
 
-    // check we have a valid encodingPreset
-    NSArray *encodingPresets = [DEFAULT_ENCODING_PRESETS componentsSeparatedByString:@", "];
-    NSArray *validChosenSize = [encodingPresets filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSString *option, NSDictionary *bindings) {
-        return [encodingPreset isEqualToString:option];
-    }]];
+    // check we have a valid encodingPreset if no custom resolution is specified
+    if (customResolution == nil) {
+        NSArray *encodingPresets = [DEFAULT_ENCODING_PRESETS componentsSeparatedByString:@", "];
+        NSArray *validChosenSize = [encodingPresets filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSString *option, NSDictionary *bindings) {
+            return [encodingPreset isEqualToString:option];
+        }]];
 
-    if (!validChosenSize.count) {
-        error("Invalid video preset! (must be one of %s) - aborting\n", [DEFAULT_ENCODING_PRESETS UTF8String]);
-        return 128;
+        if (!validChosenSize.count) {
+            error("Invalid video preset! (must be one of %s) - aborting\n", [DEFAULT_ENCODING_PRESETS UTF8String]);
+            return 128;
+        }
+    }
+
+    // validate custom resolution format if specified
+    if (customResolution != nil) {
+        NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"^\\d+x\\d+$" options:0 error:nil];
+        NSUInteger matches = [regex numberOfMatchesInString:customResolution options:0 range:NSMakeRange(0, [customResolution length])];
+        
+        if (matches == 0) {
+            error("Invalid resolution format! Must be WIDTHxHEIGHT (e.g. 1920x1080) - aborting\n");
+            return 128;
+        }
     }
 
     // start capturing video, start a run loop
@@ -179,7 +219,10 @@
               recordingDuration:recordingDuration
                     encodingPreset:encodingPreset
                         delaySeconds:delaySeconds
-                                 noAudio:noAudio]) {
+                                 noAudio:noAudio
+                           customBitrate:customBitrate
+                        customResolution:customResolution
+                       fitWithoutCropping:fitWithoutCropping]) {
 
         if(recordingDuration != nil) {
             console("Started capture...\n");
@@ -294,13 +337,37 @@
 }
 
 /**
+ * Checks if the specified dimensions are supported by the device
+ */
+- (BOOL)isResolutionSupported:(AVCaptureDevice *)device width:(int)width height:(int)height {
+    BOOL supported = NO;
+    
+    // Check if the device supports the requested resolution
+    for (AVCaptureDeviceFormat *format in [device formats]) {
+        CMVideoDimensions dimensions = CMVideoFormatDescriptionGetDimensions(format.formatDescription);
+        
+        if (dimensions.width >= width && dimensions.height >= height) {
+            verbose("(device supports resolution %dx%d - found format with %dx%d)\n", 
+                    width, height, dimensions.width, dimensions.height);
+            supported = YES;
+            break;
+        }
+    }
+    
+    return supported;
+}
+
+/**
  * Start a capture session on a device, saving to filePath for recordSeconds
  */
 - (BOOL)startSession:(AVCaptureDevice *)videoDevice
    recordingDuration:(NSNumber *)recordingDuration
 			encodingPreset:(NSString *)encodingPreset
 				delaySeconds:(NSNumber *)delaySeconds
-             noAudio:(BOOL)noAudio {
+             noAudio:(BOOL)noAudio
+           customBitrate:(int)customBitrate
+        customResolution:(NSString *)customResolution
+       fitWithoutCropping:(BOOL)fitWithoutCropping {
 
   BOOL success = NO;
   NSError *nserror;
@@ -310,10 +377,36 @@
 	verbose("  delay:    %.2fs\n",    [delaySeconds floatValue]);
 	verbose("  duration: %.2fs\n",    [recordingDuration floatValue]);
 	verbose("  file:     %s\n",       [filePath UTF8String]);
-	verbose("  video:    %s\n",       [encodingPreset UTF8String]);
+	
+	if (customResolution != nil) {
+		verbose("  video:    Custom (%s)\n", [customResolution UTF8String]);
+		verbose("  bitrate:  %d bps\n",     customBitrate);
+	} else {
+		verbose("  video:    %s\n",       [encodingPreset UTF8String]);
+	}
+	
 	verbose("  audio:    %s\n",       [noAudio ? @"(none)": @"HQ AAC" UTF8String]);
 	verbose("  device:   %s\n",       [[videoDevice localizedName] UTF8String]);
 	verbose("            %s - %s\n",  [[videoDevice modelID] UTF8String], [[videoDevice manufacturer] UTF8String]);
+
+	// Check if custom resolution is supported
+	if (customResolution != nil) {
+		NSArray *dimensions = [customResolution componentsSeparatedByString:@"x"];
+		int width = [[dimensions objectAtIndex:0] intValue];
+		int height = [[dimensions objectAtIndex:1] intValue];
+		
+		// Log available formats for debugging
+		verbose("(available device formats:)\n");
+		for (AVCaptureDeviceFormat *format in [videoDevice formats]) {
+			CMVideoDimensions dims = CMVideoFormatDescriptionGetDimensions(format.formatDescription);
+			verbose("  %dx%d\n", dims.width, dims.height);
+		}
+		
+		if (![self isResolutionSupported:videoDevice width:width height:height]) {
+			verbose("(warning: requested resolution %dx%d may not be fully supported by this device)\n", 
+					width, height);
+		}
+	}
 
 	verbose("(initializing capture session)\n");
     session = [[AVCaptureSession alloc] init];
@@ -363,13 +456,78 @@
 			return success;
 		}
 
-		verbose("(setting encoding preset)\n");
-		NSString *capturePreset = [NSString stringWithFormat:@"AVCaptureSessionPreset%@", encodingPreset];
-		if ([session canSetSessionPreset:capturePreset]) {
-			[session setSessionPreset:capturePreset];
-	  } else {
-			verbose("(could not set encoding preset '%s' for this device, defaulting to Medium)\n", [encodingPreset UTF8String]);
-			[session setSessionPreset:AVCaptureSessionPresetMedium];
+		// Set session preset based on whether custom resolution is specified
+		if (customResolution == nil) {
+			verbose("(setting encoding preset)\n");
+			NSString *capturePreset = [NSString stringWithFormat:@"AVCaptureSessionPreset%@", encodingPreset];
+			if ([session canSetSessionPreset:capturePreset]) {
+				[session setSessionPreset:capturePreset];
+			} else {
+				verbose("(could not set encoding preset '%s' for this device, defaulting to Medium)\n", [encodingPreset UTF8String]);
+				[session setSessionPreset:AVCaptureSessionPresetMedium];
+			}
+		} else {
+			verbose("(setting custom resolution and bitrate)\n");
+			
+			// Parse width and height from custom resolution
+			NSArray *dimensions = [customResolution componentsSeparatedByString:@"x"];
+			int width = [[dimensions objectAtIndex:0] intValue];
+			int height = [[dimensions objectAtIndex:1] intValue];
+			
+			// For custom resolution, we need to be more specific about the format
+			verbose("(set custom resolution to %dx%d and bitrate to %d bps)\n", width, height, customBitrate);
+			
+			// First start with the high preset to get the best quality base format
+			[session setSessionPreset:AVCaptureSessionPresetHigh];
+			
+			// Configure the actual compression settings for output
+			[session beginConfiguration];
+			
+			// Choose scaling mode based on user preference
+			NSString *scalingMode = fitWithoutCropping ? 
+				AVVideoScalingModeResizeAspect : AVVideoScalingModeResizeAspectFill;
+			verbose("(using scaling mode: %s)\n", fitWithoutCropping ? "fit without cropping" : "fill and crop");
+			
+			// Create a dictionary of compression settings for the video
+			NSDictionary *compressionProperties = @{
+				AVVideoAverageBitRateKey: @(customBitrate),
+				AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
+				AVVideoMaxKeyFrameIntervalKey: @(30),  // Keyframe every 30 frames
+				AVVideoAllowFrameReorderingKey: @NO,   // Disable frame reordering for lower latency
+			};
+			
+			// Set the format description dictionary
+			NSDictionary *videoSettings = @{
+				AVVideoCodecKey: AVVideoCodecTypeH264,
+				AVVideoWidthKey: @(width),
+				AVVideoHeightKey: @(height),
+				AVVideoCompressionPropertiesKey: compressionProperties,
+				AVVideoScalingModeKey: scalingMode
+			};
+			
+			// We need to get the connection after adding the output to the session
+			AVCaptureConnection *videoConnection = [movieFileOutput connectionWithMediaType:AVMediaTypeVideo];
+			
+			// Apply the settings to the movie file output
+			if (videoConnection) {
+				// Set video orientation if needed
+				if ([videoConnection isVideoOrientationSupported]) {
+					[videoConnection setVideoOrientation:AVCaptureVideoOrientationPortrait];
+				}
+				
+				// Apply settings directly to the connection's output
+				[movieFileOutput setOutputSettings:videoSettings forConnection:videoConnection];
+				
+				// Verify that our settings will be applied
+				NSDictionary *actualSettings = [movieFileOutput outputSettingsForConnection:videoConnection];
+				if (actualSettings) {
+					verbose("(confirmed output settings: %s)\n", [actualSettings description].UTF8String);
+				} else {
+					verbose("(warning: could not confirm output settings)\n");
+				}
+			}
+			
+			[session commitConfiguration];
 		}
 
 		// delete the target file if it exists

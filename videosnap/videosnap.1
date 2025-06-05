@@ -19,7 +19,7 @@
 is an OSX command line tool for recording video and audio from any attached
 capture device.
 .Pp
-You can specify which device to capture from, the duration, encoding and delay
+You can specify which device to capture from, the duration, encoding, bitrate, resolution and delay
 period (before capturing starts). You can also disable audio capture. By default
 videosnap will capture video and audio from the first found device at 30fps with
 a Medium quality preset and a short (0.5s) warm-up delay.
@@ -36,7 +36,7 @@ The following options are available:
 .It Fl l
 List attached capture devices
 .It Fl w
-Set delay before capturing starts (in seconds, default 0s)
+Set delay before capturing starts (in seconds, default 0.5s)
 .It Fl t
 Set duration of video (in seconds)
 .It Fl d
@@ -51,6 +51,12 @@ captured by default)
 Turn ON verbose mode (OFF by default)
 .It Fl h
 Show help
+.It Fl r
+Set custom resolution (e.g. 1920x1080)
+.It Fl b
+Set custom bitrate in bps (e.g. 5000000 for 5Mbps)
+.It Fl f
+Fit full image without cropping (default is to fill and crop)
 .El
 .Pp
 .Sh EXAMPLES
@@ -66,6 +72,36 @@ saving to my_video.mov
 .Pp
 .Nm
 -t 60 -w 5 -d 'FaceTime HD Camera (Built-in)' --no-audio my_video.mov
+.Pp
+Capture from the default device to a file called movie.mov (until Ctrl+c)
+.Pp
+.Nm
+movie.mov
+.Pp
+Capture 6 seconds of video with a 10 second delay before recording starts
+.Pp
+.Nm
+-t 6 -w 10 movie.mov
+.Pp
+Capture from a specific device, with high quality
+.Pp
+.Nm
+-d "FaceTime HD Camera" -p High movie.mov
+.Pp
+List all connected devices
+.Pp
+.Nm
+-l
+.Pp
+Capture with custom resolution and bitrate
+.Pp
+.Nm
+-r 1920x1080 -b 10000000 movie.mov
+.Pp
+Capture at half the device's native resolution and fit without cropping
+.Pp
+.Nm
+-f movie.mov
 .Pp
 .Sh FILES                \" File used or created by the topic of the man page
 .Bl -tag -width "./videosnap" -compact
@@ -94,3 +130,8 @@ No known bugs. Please report any issues here: https://github.com/matthutchinson/
 2013-Sep-08 Initial Release
 .El
 .Pp
+.Sh SEE ALSO
+https://github.com/matthutchinson/videosnap
+.Pp
+.Sh AUTHOR
+Matthew Hutchinson (hello@matthewhutchinson.net)
