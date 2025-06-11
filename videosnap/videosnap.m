@@ -523,16 +523,15 @@
 			verbose("(using scaling mode: %s)\n", fitWithoutCropping ? "fit without cropping" : "fill and crop");
 			
 			// Create a dictionary of compression settings for the video
-			NSDictionary *compressionProperties = @{
+			NSMutableDictionary *compressionProperties = [@{
 				AVVideoAverageBitRateKey: @(customBitrate),
-				AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
-				AVVideoMaxKeyFrameIntervalKey: @(30),  // Keyframe every 30 frames
-				AVVideoAllowFrameReorderingKey: @NO,   // Disable frame reordering for lower latency
-			};
+				AVVideoMaxKeyFrameIntervalKey: @(60),  // Keyframe every 60 frames for better compression
+				AVVideoAllowFrameReorderingKey: @YES  // Enable frame reordering for better compression
+			} mutableCopy];
 			
 			// Set the format description dictionary
 			NSDictionary *videoSettings = @{
-				AVVideoCodecKey: AVVideoCodecTypeH264,
+				AVVideoCodecKey: AVVideoCodecTypeHEVC,  // Use HEVC codec
 				AVVideoWidthKey: @(width),
 				AVVideoHeightKey: @(height),
 				AVVideoCompressionPropertiesKey: compressionProperties,
