@@ -17,13 +17,15 @@
 #define verbose_error(...) (self->isVerbose && fprintf(stderr, __VA_ARGS__))
 
 // VideoSnap
-@interface VideoSnap : NSObject <AVCaptureFileOutputRecordingDelegate> {
+@interface VideoSnap : NSObject <AVCaptureFileOutputRecordingDelegate, AVCapturePhotoCaptureDelegate> {
     AVCaptureSession *session;
     AVCaptureConnection *conn;
     AVCaptureMovieFileOutput *movieFileOutput;
+    AVCapturePhotoOutput *photoOutput;  // For screenshot functionality
     NSMutableArray *connectedDevices;
     BOOL isVerbose;
     NSString *filePath;
+    BOOL isScreenshotMode;  // Flag to indicate screenshot mode
 }
 
 //
@@ -129,5 +131,13 @@
  * written to, due to error or stopping the capture session
  */
 -(void)captureOutput:(AVCaptureFileOutput *)captureOutput didFinishRecordingToOutputFileAtURL:(NSURL *)outputFileURL fromConnections:(NSArray *)connections error:(NSError *)error;
+
+/**
+ * Takes a screenshot from the specified device and saves it to filePath
+ * @return BOOL
+ */
+-(BOOL)takeScreenshot:(AVCaptureDevice *)device 
+         filePath:(NSString *)filePath
+     delaySeconds:(NSNumber *)delaySeconds;
 
 @end

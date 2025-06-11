@@ -39,6 +39,7 @@
 	console("  -r WxH      Set custom resolution (e.g. 1920x1080, overrides preset)\n");
 	console("  -f          Fit full image without cropping (default is to fill and crop)\n");
 	console("  -b bitrate  Set custom bitrate in bps (e.g. 5000000 for 5Mbps)\n");
+	console("  -s          Take a screenshot instead of recording video\n");
 
 	NSArray *encodingPresets = [DEFAULT_ENCODING_PRESETS componentsSeparatedByString:@", "];
 	for (id encodingPreset in encodingPresets) {
@@ -69,6 +70,7 @@
     NSNumber        *delaySeconds      = [NSNumber numberWithFloat:DEFAULT_RECORDING_DELAY];
     NSNumber        *recordingDuration = nil;
     BOOL            noAudio            = NO;
+    BOOL            isScreenshotMode   = NO;
     int             customBitrate      = DEFAULT_BITRATE;
     NSString        *customResolution  = nil;
     BOOL            fitWithoutCropping = NO;
@@ -97,6 +99,10 @@
 
             if([arg isEqualToString: @"--no-audio"]) {
                 noAudio = YES;
+            }
+
+            if ([arg isEqualToString:@"-s"]) {
+                isScreenshotMode = YES;
             }
 
             switch ([arg characterAtIndex:1]) {
@@ -211,6 +217,16 @@
         if (matches == 0) {
             error("Invalid resolution format! Must be WIDTHxHEIGHT (e.g. 1920x1080) - aborting\n");
             return 128;
+        }
+    }
+
+    if (isScreenshotMode) {
+        if ([self takeScreenshot:device filePath:filePath delaySeconds:delaySeconds]) {
+            console("Screenshot saved to '%s'\n", [filePath UTF8String]);
+            return 0;
+        } else {
+            error("Failed to take screenshot\n");
+            return 1;
         }
     }
 
@@ -705,6 +721,78 @@ didFinishRecordingToOutputFileAtURL:(NSURL *)outputFileURL
 		verbose_error("(reason: %s)\n", [[error localizedDescription] UTF8String]);
 		exit(1);
 	}
+}
+
+- (BOOL)takeScreenshot:(AVCaptureDevice *)device filePath:(NSString *)filePath delaySeconds:(NSNumber *)delaySeconds {
+    NSError *nserror;
+    
+    verbose("(initializing capture session for screenshot)\n");
+    session = [[AVCaptureSession alloc] init];
+    
+    // Add video input
+    verbose("(adding video device)\n");
+    AVCaptureDeviceInput *videoInput = [AVCaptureDeviceInput deviceInputWithDevice:device error:&nserror];
+    
+    if (videoInput) {
+        if ([session canAddInput:videoInput]) {
+            [session addInput:videoInput];
+            
+            // Configure photo output
+            photoOutput = [[AVCapturePhotoOutput alloc] init];
+            if ([session canAddOutput:photoOutput]) {
+                [session addOutput:photoOutput];
+                
+                // Start capture session
+                verbose("(starting capture session)\n");
+                [session startRunning];
+                
+                if ([session isRunning]) {
+                    // Apply delay if specified
+                    if ([delaySeconds floatValue] > 0.0f) {
+                        verbose("(delaying for %.2lf seconds)\n", [delaySeconds doubleValue]);
+                        [[NSRunLoop currentRunLoop] runUntilDate:[[[NSDate alloc] init] dateByAddingTimeInterval:[delaySeconds doubleValue]]];
+                        verbose("(delay period ended)\n");
+                    }
+                    
+                    // Take the photo
+                    AVCapturePhotoSettings *settings = [AVCapturePhotoSettings photoSettings];
+                    [photoOutput capturePhotoWithSettings:settings delegate:self];
+                    
+                    // Run the run loop until the delegate calls exit()
+                    [[NSRunLoop currentRunLoop] run];
+                } else {
+                    error("Could not start the capture session\n");
+                }
+            } else {
+                error("Could not add photo output to the session\n");
+            }
+        } else {
+            error("Could not add the video device to the session\n");
+        }
+    } else {
+        error("Video device is not connected or available\n");
+        verbose_error("%s\n", [[nserror localizedDescription] UTF8String]);
+    }
+    
+    return NO; // Will not reach here, but required by signature
+}
+
+// AVCapturePhotoCaptureDelegate method
+- (void)captureOutput:(AVCapturePhotoOutput *)output didFinishProcessingPhoto:(AVCapturePhoto *)photo error:(NSError *)error {
+    if (error) {
+        error("Error capturing photo: %s\n", [[error localizedDescription] UTF8String]);
+        return;
+    }
+    
+    NSData *imageData = [photo fileDataRepresentation];
+    if ([imageData writeToFile:filePath atomically:YES]) {
+        [session stopRunning];
+        exit(0);  // Exit successfully
+    } else {
+        error("Failed to save screenshot to file\n");
+        [session stopRunning];
+        exit(1);  // Exit with error
+    }
 }
 
 @end
